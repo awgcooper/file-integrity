@@ -1,17 +1,10 @@
 #!/usr/bin/python3
 # https://codereview.stackexchange.com/questions/147056/short-script-to-hash-files-in-a-directory
 
-import os
 import os.path
 import xxhash
-import csv
-import shutil
-from datetime import datetime
-
-# recursive file listing
-#rootPath = ('D:/misc')
-#p = Path(rootPath).glob('**/*')
-#fileList = [x for x in p if x.is_file()]
+import datetime
+import pickle
 
 
 def list_files_recursive(path):
@@ -24,34 +17,42 @@ def list_files_recursive(path):
     return lst
 
 
-top_directory = "D:\\misc"
 def get_hashes():
-    fileList = list_files_recursive(top_directory)
-    list_of_hashes = []
-    for each_file in fileList:
+    root_path = ('D:\\misc')
+    file_list = list_files_recursive(root_path)
+    filelist_dict = dict.fromkeys(file_list)
+    for key_filename in filelist_dict:
         hash_fn = xxhash.xxh128()
-        modTime = os.path.getmtime(each_file)
-        with open(each_file, "rb") as f:
+        with open(key_filename, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
                 hash_fn.update(chunk)
+        mod_time = datetime.datetime.fromtimestamp(os.path.getmtime(key_filename))
+        filelist_dict.update({key_filename:[ hash_fn.hexdigest(), mod_time ]})
+    return filelist_dict
 
-        #list_of_hashes.append([each_file, hash_fn.hexdigest(), modTime])
-        list_of_hashes.append('{};{};{}\n'.format(each_file, hash_fn.hexdigest(), round(modTime)))
-    return list_of_hashes
 
-def write_hashes():
-    now = datetime.now()
-    date_time = now.strftime("%Y-%m-%d")
-    global hashes_csv_file
-    hashes_csv_file = ('D:\\misc\\hashes_' + date_time + '.csv')
-    hashes = get_hashes()
-    with open(hashes_csv_file, 'w') as f:
-        for final_values in hashes:
-            #jsonString = json.dumps(hash_fn)
-            #f.write(jsonString)
-            f.write(final_values)
-            #writer = csv.writer(f, delimiter = ";")
-            #writer = csv.writer(f)
-            #writer.writerow(final_values)
+datefmt = lambda x: x.strftime("%Y-%m-%d")
+today = datefmt(datetime.date.today())
+yesterday = datefmt(datetime.date.today() - datetime.timedelta(days=1))
+file_parts = [ 'D:\\misc\\hashes_', today, yesterday, '.pkl' ]
+file_today = file_parts[0] + file_parts[1] + file_parts[3]
+file_yesterday = file_parts[0] + file_parts[2] + file_parts[3]
+dict_filelist_today = get_hashes()
+with open(file_today, 'wb') as fp:
+    pickle.dump(dict_filelist_today, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
-write_hashes()
+#print(get_hashes())
+
+# load pickle file from yesterday back into dictionary
+with open(file_yesterday, 'rb') as f:
+    dict_filelist_yesterday = pickle.load(f)
+
+#print(dict_filelist_yesterday)
+
+# access hashes
+for k, v in dict_filelist_today.items():
+    print(v[0])
+
+# access mod_time
+for k, v in dict_filelist_today.items():
+    print(v[1])
