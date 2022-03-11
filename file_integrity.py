@@ -8,12 +8,6 @@ import os.path
 import dill
 
 
-# date formatting
-datefmt = lambda x: x.strftime("%Y-%m-%d")
-today = datefmt(datetime.date.today())
-yesterday = datefmt(datetime.date.today() - datetime.timedelta(days=1))
-
-
 # create dictionary with list values { filename: [xxhash, modification time] }
 def dict_today():
     root_path = ('D:/files')
@@ -33,14 +27,14 @@ def dict_today():
 # save today's dictionary to file
 def save_today():
     dict_filelist_today = dict_today()
-    file_today = 'D:/misc/hashes_' + today + '.pickle'
+    file_today = filebase + today + '.pickle'
     with open(file_today, 'wb') as f:
         dill.dump(dict_filelist_today, f)
 
 
 # load file from yesterday back into dictionary
 def dict_yesterday():
-    file_yesterday = 'D:/misc/hashes_' + yesterday + '.pickle'
+    file_yesterday = filebase + yesterday + '.pickle'
     with open(file_yesterday, 'rb') as f:
         dict_filelist_yesterday = dill.load(f)
     return dict_filelist_yesterday
@@ -49,61 +43,65 @@ def dict_yesterday():
 # compare two dictionaries looking for corrupt files
 # defined as same name, same mtime, different hash
 # results printed to text file
-def corrupt_files():
-    newlist = [ ]
+def corrupt_files(dict1, dict2):
+    corrupt = [ ]
     for d1key, d1val in dict1.items():
         d2val = (dict2.get(d1key))
         if d2val == None:
             pass
         elif d1val[0] != d2val[0] and d1val[1] == d2val[1]:
-            newlist.append([str(d1key), ['today', [str(d1val[0]),
+            corrupt.append([str(d1key), ['today', [str(d1val[0]),
             str(d1val[1])]], ['yesterday', [str(d2val[0]), str(d2val[1])]]])
-    heading = 'CORRUPT FILES:'
-    with open('1.txt', 'w') as f:
-        f.write(heading)
-        f.write('\n')
-    with open('1.txt', 'a') as f:
-        if not newlist:
-            a = '{{ NONE }}'
-            f.write(a)
-            f.write('\n')
-        else:
-            for entry in newlist:
-                f.write(str(entry))
-                f.write('\n')
+    return corrupt
 
 
 # dictionaries for today and yesterday converted to sets
 # sets can be subtracted from one another to find differences
 # today - yesterday = new files; yesterday - today = deleted files
 # results printed to text file
-def files_add_del(d1, d2):
-    d1_keys = set(d1.keys())
-    d2_keys = set(d2.keys())
-    added = d1_keys - d2_keys
-    removed = d2_keys - d1_keys
-    heading = 'NEW FILES:'
-    with open('1.txt', 'a') as f:
-        f.write('\n\n')
-        f.write(heading)
-        f.write('\n')
-    with open('1.txt', 'a') as f:
-        for j in sorted(added):
-            a = '{0}\n'.format(str(j).replace(str(j.anchor), ''))
-            f.write(a)
-    heading = 'DELETED FILES:'
-    with open('1.txt', 'a') as f:
-        f.write('\n\n')
-        f.write(heading)
-        f.write('\n')
-    with open('1.txt', 'a') as f:
-        for j in sorted(removed):
-            a = '{0}\n'.format(str(j).replace(str(j.anchor), ''))
-            f.write(a)
+def files_add_del(dict1, dict2):
+    dict1_keys = set(dict1.keys())
+    dict2_keys = set(dict2.keys())
+    new = dict1_keys - dict2_keys
+    deleted = dict2_keys - dict1_keys
+    return new, deleted
 
 
-save_today()                # save today's file list to pickle file
-dict1 = dict_today()        # load today's list from pickle file to dict
-dict2 = dict_yesterday()    # load yesterday's list from pickle file to dict
-corrupt_files()             # check for corrupt files
-files_add_del(dict1, dict2) # check for new and deleted files
+def write_to_file(report, heading, file_delta):
+    if heading == '-- CORRUPT FILES --':
+        with open(report, 'w') as f:
+            f.write(heading + '\n')
+        with open(report, 'a') as f:
+            if not file_delta:
+                a = '{{ NONE }}'
+                f.write(a + '\n')
+            else:
+                for entry in file_delta:
+                    f.write(str(entry) + '\n')
+    else:
+        with open(report, 'a') as f:
+            f.write('\n\n' + heading + '\n')
+        with open(report, 'a') as f:
+            for j in sorted(file_delta):
+                a = '{0}\n'.format(str(j).replace(str(j.anchor), ''))
+                f.write(a)
+
+
+# date formatting
+datefmt = lambda x: x.strftime("%Y-%m-%d")
+today = datefmt(datetime.date.today())
+yesterday = datefmt(datetime.date.today() - datetime.timedelta(days=1))
+filebase = 'D:/misc/pickle/hashes_'
+report = 'D:/misc/pickle/report_' + today + '.txt'
+
+
+# run functions
+save_today()                                      # save today's file list
+dict1 = dict_today()                              # load today's  to dict
+dict2 = dict_yesterday()                          # load yesterday's list to dict
+corrupt = corrupt_files(dict1, dict2)             # create list of corrupt files
+new = (files_add_del(dict1, dict2)[0])            # create set of new files
+deleted = (files_add_del(dict1, dict2)[1])        # create set of deleted files
+write_to_file(report, '-- CORRUPT FILES --', corrupt)
+write_to_file(report, '-- NEW FILES --', new)
+write_to_file(report, '-- DELETED FILES --', deleted)
